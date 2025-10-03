@@ -1,0 +1,429 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { RotateCcw, Sparkles, Zap, MessageSquare, TrendingUp, User, Send, Loader2 } from 'lucide-react';
+
+// Mock constants
+const MESSAGE_TYPES = {
+  USER: 'user',
+  ASSISTANT: 'assistant',
+  ERROR: 'error',
+};
+
+// Generate unique IDs
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
+// Mock generateSessionId
+const generateSessionId = () => generateId();
+
+// Mock chatAPI
+const chatAPI = {
+  sendMessage: async (messageText, sessionId) => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          response: `Echo: ${messageText}`,
+          intent: 'general',
+          confidence: 0.9,
+          data: {},
+          visualization: null,
+          query_used: messageText,
+          execution_time: 0.5,
+          suggestions: ['Show recent logs', 'Analyze failed logins'],
+        });
+      }, 1000);
+    });
+  },
+  clearSession: async (sessionId) => {
+    return Promise.resolve();
+  },
+};
+
+// Format timestamp
+const formatTimestamp = (date) => {
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+// MessageBubble Component
+const MessageBubble = ({ message, onSuggestionClick, isLatest }) => {
+  const isUser = message.type === MESSAGE_TYPES.USER;
+  const isError = message.type === MESSAGE_TYPES.ERROR;
+  
+  const bgColor = isUser
+    ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/30'
+    : isError
+    ? 'bg-gradient-to-br from-red-50 to-red-100 text-red-900 border border-red-200'
+    : 'bg-white text-gray-800 shadow-md border border-gray-100';
+    
+  const alignment = isUser ? 'ml-auto' : 'mr-auto';
+  const borderRadius = isUser 
+    ? 'rounded-2xl rounded-tr-md'
+    : 'rounded-2xl rounded-tl-md';
+
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-6 max-w-4xl ${alignment} animate-fadeIn`}>
+      <div className={`flex ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 w-full`}>
+        {/* Profile Icon */}
+        <div className="flex-shrink-0 mt-1">
+          {isUser ? (
+            <div className="p-2.5 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl shadow-sm">
+              <User className="h-5 w-5 text-blue-700" />
+            </div>
+          ) : (
+            <div className="p-2.5 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-xl shadow-lg shadow-purple-500/40">
+              <MessageSquare className="h-5 w-5 text-white" />
+            </div>
+          )}
+        </div>
+        
+        {/* Message Content */}
+        <div className={`p-5 ${bgColor} ${borderRadius} max-w-[85%] backdrop-blur-sm transition-all duration-300 hover:shadow-xl`}>
+          <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: message.content }} />
+          
+          {isLatest && message.metadata?.suggestions?.length > 0 && !isUser && (
+            <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
+              {message.metadata.suggestions.map((suggestion, index) => (
+                <button
+                  key={index}
+                  onClick={() => onSuggestionClick(suggestion)}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-gray-700 rounded-xl text-sm border border-blue-200 shadow-sm hover:shadow-md transition-all duration-200 font-medium hover:scale-105 active:scale-95"
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {/* Timestamp */}
+          <div className={`text-xs mt-3 flex items-center gap-1 ${isUser ? 'text-blue-100' : 'text-gray-400'}`}>
+            <div className={`w-1.5 h-1.5 rounded-full ${isUser ? 'bg-blue-200' : 'bg-gray-300'}`}></div>
+            {formatTimestamp(message.timestamp)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// QueryInput Component
+const QueryInput = ({ onSendMessage, isLoading }) => {
+  const [input, setInput] = useState('');
+  
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (input.trim() && !isLoading) {
+      onSendMessage(input);
+      setInput('');
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="relative">
+      <div className="flex gap-3 bg-white p-2 rounded-2xl shadow-lg border border-gray-200 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-100 transition-all duration-200">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask about security data, threats, or generate reports..."
+          className="flex-1 p-4 rounded-xl border-0 focus:outline-none bg-transparent text-gray-900 placeholder-gray-400 text-sm"
+          disabled={isLoading}
+        />
+        <button
+          type="submit"
+          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 disabled:shadow-none flex items-center gap-2 font-medium hover:scale-105 active:scale-95 disabled:hover:scale-100"
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Send className="h-5 w-5" />
+          )}
+          <span className="hidden sm:inline">Send</span>
+        </button>
+      </div>
+    </form>
+  );
+};
+
+// LoadingSpinner Component
+const LoadingSpinner = ({ size = 'lg' }) => {
+  const sizeClass = size === 'lg' ? 'h-6 w-6' : 'h-4 w-4';
+  return (
+    <div className="flex items-center gap-3">
+      <div className={`animate-spin rounded-full ${sizeClass} border-3 border-gray-200 border-t-blue-600`}></div>
+      <div className="flex gap-1">
+        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+      </div>
+    </div>
+  );
+};
+
+const ChatInterface = () => {
+  const [messages, setMessages] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionId] = useState(() => generateSessionId());
+  const [suggestions, setSuggestions] = useState([]);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    // Add welcome message
+    const welcomeMessage = {
+      id: generateId(),
+      type: MESSAGE_TYPES.ASSISTANT,
+      content: `
+        <div class="space-y-4">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg">
+              <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+              </svg>
+            </div>
+            <h2 class="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Welcome to SIEM NLP Assistant!</h2>
+          </div>
+          <p class="text-gray-600 leading-relaxed">Your intelligent partner for security investigations. I can help you analyze logs, detect threats, and generate reports using natural language.</p>
+          <div class="mt-5 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-100">
+            <h3 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <span class="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+              What I can do:
+            </h3>
+            <ul class="space-y-3 text-gray-700">
+              <li class="flex items-start gap-3">
+                <span class="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-lg flex items-center justify-center text-xs font-bold mt-0.5">1</span>
+                <div><span class="font-semibold text-blue-700">Search & Analyze:</span> "Show failed logins from yesterday"</div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-lg flex items-center justify-center text-xs font-bold mt-0.5">2</span>
+                <div><span class="font-semibold text-purple-700">Generate Reports:</span> "Create a security summary for last week"</div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="flex-shrink-0 w-6 h-6 bg-pink-600 text-white rounded-lg flex items-center justify-center text-xs font-bold mt-0.5">3</span>
+                <div><span class="font-semibold text-pink-700">Detect Threats:</span> "What malware detections occurred today?"</div>
+              </li>
+              <li class="flex items-start gap-3">
+                <span class="flex-shrink-0 w-6 h-6 bg-indigo-600 text-white rounded-lg flex items-center justify-center text-xs font-bold mt-0.5">4</span>
+                <div><span class="font-semibold text-indigo-700">Visualize Data:</span> "Show authentication patterns with charts"</div>
+              </li>
+            </ul>
+          </div>
+          <p class="text-gray-600 font-medium">✨ Try an example query or ask anything about your security data!</p>
+        </div>
+      `,
+      timestamp: new Date(),
+      metadata: { isWelcome: true },
+    };
+
+    setMessages([welcomeMessage]);
+
+    // Listen for queries from sidebar
+    const handleSidebarQuery = (event) => {
+      handleSendMessage(event.detail);
+    };
+
+    window.addEventListener('sendQuery', handleSidebarQuery);
+    return () => window.removeEventListener('sendQuery', handleSidebarQuery);
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleSendMessage = async (messageText) => {
+    if (!messageText.trim() || isLoading) return;
+
+    const userMessage = {
+      id: generateId(),
+      type: MESSAGE_TYPES.USER,
+      content: messageText,
+      timestamp: new Date(),
+      metadata: {},
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setIsLoading(true);
+    setSuggestions([]);
+
+    try {
+      const response = await chatAPI.sendMessage(messageText, sessionId);
+
+      const assistantMessage = {
+        id: generateId(),
+        type: MESSAGE_TYPES.ASSISTANT,
+        content: response.response,
+        timestamp: new Date(),
+        metadata: {
+          intent: response.intent,
+          confidence: response.confidence,
+          data: response.data,
+          visualization: response.visualization,
+          queryUsed: response.query_used,
+          executionTime: response.execution_time,
+          suggestions: response.suggestions,
+        },
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+      setSuggestions(response.suggestions || []);
+    } catch (error) {
+      console.error('Error sending message:', error);
+
+      const errorMessage = {
+        id: generateId(),
+        type: MESSAGE_TYPES.ERROR,
+        content: `Sorry, I hit a snag: ${error.message}. Please try again or rephrase your query.`,
+        timestamp: new Date(),
+        metadata: { error: error.message },
+      };
+
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    handleSendMessage(suggestion);
+  };
+
+  const handleClearChat = async () => {
+    try {
+      await chatAPI.clearSession(sessionId);
+      setMessages([]);
+      setSuggestions([]);
+
+      const welcomeMessage = {
+        id: generateId(),
+        type: MESSAGE_TYPES.ASSISTANT,
+        content: `
+          <div class="space-y-3 text-center">
+            <div class="inline-flex p-3 bg-gradient-to-br from-green-100 to-emerald-100 rounded-2xl">
+              <svg class="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+            <h2 class="text-xl font-bold text-gray-900">Chat Cleared!</h2>
+            <p class="text-gray-600">Ready for a fresh start. How can I assist with your security investigation?</p>
+          </div>
+        `,
+        timestamp: new Date(),
+        metadata: {},
+      };
+
+      setMessages([welcomeMessage]);
+    } catch (error) {
+      console.error('Error clearing chat:', error);
+    }
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.4s ease-out;
+        }
+      `}</style>
+      
+      {/* Header */}
+      <div className="flex items-center justify-between p-5 bg-white/80 backdrop-blur-xl border-b border-gray-200/50 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 rounded-2xl shadow-lg shadow-purple-500/30">
+            <MessageSquare className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Security Investigation</h2>
+            <p className="text-sm text-gray-500 flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-200">
+                <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
+                <span className="text-xs font-medium text-emerald-700">{messages.length - 1} queries</span>
+              </div>
+              <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+              <span className="text-xs">Powered by AI</span>
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleClearChat}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl text-gray-700 hover:text-gray-900 shadow-sm hover:shadow-md transition-all duration-200 font-medium group hover:scale-105 active:scale-95"
+        >
+          <RotateCcw className="h-4 w-4 group-hover:rotate-180 transition-transform duration-500" />
+          <span className="text-sm">Clear Chat</span>
+        </button>
+      </div>
+
+      {/* Messages Container */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="max-w-5xl mx-auto space-y-4">
+          {messages.map((message, index) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              onSuggestionClick={handleSuggestionClick}
+              isLatest={index === messages.length - 1}
+            />
+          ))}
+          
+          {/* Loading Indicator */}
+          {isLoading && (
+            <div className="flex justify-center py-6 animate-fadeIn">
+              <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 border border-gray-200 shadow-xl flex items-center gap-4">
+                <LoadingSpinner size="lg" />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Processing your request</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Analyzing security data...</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Suggestions */}
+          {suggestions.length > 0 && !isLoading && (
+            <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-5 border border-purple-200 shadow-lg animate-fadeIn">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-1.5 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+                  <Sparkles className="h-4 w-4 text-white" />
+                </div>
+                <span className="text-sm font-semibold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">Suggested Queries</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="px-4 py-2.5 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 text-gray-700 rounded-xl text-sm border border-purple-200 shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2 font-medium hover:scale-105 active:scale-95"
+                  >
+                    <Zap className="h-4 w-4 text-purple-600" />
+                    <span>{suggestion}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      {/* Query Input */}
+      <div className="p-5 bg-white/80 backdrop-blur-xl border-t border-gray-200/50">
+        <div className="max-w-5xl mx-auto">
+          <QueryInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ChatInterface;
